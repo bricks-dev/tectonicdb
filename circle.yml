@@ -52,7 +52,7 @@ jobs:
       - run: |
           test -f ~/.cargo/bin/cargo || (curl https://sh.rustup.rs -s > /home/install.sh &&
           chmod +x /home/install.sh &&
-          sh /home/install.sh -y --verbose --default-toolchain nightly-2018-03-26)
+          sh /home/install.sh -y --verbose --default-toolchain nightly-2018-05-25)
       - save_cache:
           key: v2-cargo-nightly-2017-03-26-{{ arch }}
           paths:
@@ -62,7 +62,7 @@ jobs:
           paths:
             - ~/project/target/
       - run: |
-          ~/.cargo/bin/rustup default nightly-2018-03-26 && \
+          ~/.cargo/bin/rustup default nightly-2018-05-25 && \
           ~/.cargo/bin/cargo build --lib --release
       - save_cache:
           key: v1-tectonicdb-lib-{{ arch }}-{{ checksum "Cargo.lock" }}
@@ -86,7 +86,7 @@ jobs:
       - run: |
           test -f ~/.cargo/bin/cargo || (curl https://sh.rustup.rs -s > /home/install.sh &&
           chmod +x /home/install.sh &&
-          sh /home/install.sh -y --verbose --default-toolchain nightly-2018-03-26)
+          sh /home/install.sh -y --verbose --default-toolchain nightly-2018-05-25)
       - save_cache:
           key: v2-cargo-nightly-2017-03-26-{{ arch }}
           paths:
@@ -96,7 +96,7 @@ jobs:
           paths:
             - ~/project/target/
       - run: |
-          ~/.cargo/bin/rustup default nightly-2018-03-26 && \
+          ~/.cargo/bin/rustup default nightly-2018-05-25 && \
           ~/.cargo/bin/cargo test --no-fail-fast
       - save_cache:
           key: v1-tectonicdb-test-{{ arch }}-{{ checksum "Cargo.lock" }}
