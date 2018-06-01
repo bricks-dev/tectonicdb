@@ -81,11 +81,6 @@ fn main() {
         .map(String::from)
         .unwrap_or(key_or_default("TECTONICDB_HIST_Q_CAPACITY", "300"));
 
-    let log_file = matches
-        .value_of("log_file")
-        .map(String::from)
-        .unwrap_or(key_or_default("TECTONICDB_LOG_FILE_NAME", "tectonic.log"));
-
     let settings = settings::Settings {
         autoflush: autoflush,
         dtf_folder: dtf_folder.to_owned(),
@@ -94,7 +89,7 @@ fn main() {
         hist_q_capacity: hist_q_capacity.parse().unwrap(),
     };
 
-    prepare_logger(verbosity, &log_file);
+    prepare_logger(verbosity);
     info!(r##"
            _/                            _/                          _/
         _/_/_/_/    _/_/      _/_/_/  _/_/_/_/    _/_/    _/_/_/          _/_/_/
@@ -106,7 +101,7 @@ fn main() {
     server::run_server(&host, &port, &settings);
 }
 
-fn prepare_logger(verbosity: u8, log_file: &str) {
+fn prepare_logger(verbosity: u8) {
     let level = match verbosity {
         0 => log::LevelFilter::Error,
         1 => log::LevelFilter::Warn,
@@ -130,7 +125,6 @@ fn prepare_logger(verbosity: u8, log_file: &str) {
         .level_for("tokio_reactor", log::LevelFilter::Info)
         .level_for("hyper", log::LevelFilter::Info)
         .chain(std::io::stdout())
-        .chain(fern::log_file(log_file).unwrap())
         .apply()
         .unwrap();
 }
@@ -187,13 +181,6 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .help(
                     "Sets the history record granularity interval. (default 60s)",
                 ),
-        )
-        .arg(
-            Arg::with_name("log_file")
-                .short("l")
-                .long("log_file")
-                .value_name("LOG_FILE")
-                .help("Sets the log file to write to"),
         )
         .get_matches()
 }
