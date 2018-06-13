@@ -83,7 +83,7 @@ impl<'a> Store<'a> {
             let is_autoflush = is_autoflush && size != 0 && (size as u32) % flush_interval == 0;
 
             if is_autoflush {
-                info!(
+                debug!(
                     "AUTOFLUSHING {}! Size: {} Last: {:?}",
                     self.name,
                     vecs.1,
@@ -139,7 +139,7 @@ impl<'a> Store<'a> {
                 dtf::encode(&fullfname, &self.name, &vecs.0)
             };
             match result {
-                Ok(_) => info!("Successfully flushed."),
+                Ok(_) => debug!("Successfully flushed."),
                 Err(_) => error!("Error flushing file."),
             };
 
