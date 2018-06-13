@@ -130,7 +130,7 @@ fn combine_files(
         .cloned()
         .collect();
 
-    println!("FILE1 UPDATES: {:?}", file1_updates);
+    println!("FILE1 UPDATES: {:?}", file1_updates.len());
 
     // Read updates from the millisecond of overlap between the two files
     // let mut overlap_updates_1: Vec<Update> = dtf::get_range_in_file(
@@ -172,7 +172,7 @@ fn combine_files(
         .collect();
     overlapping_updates.sort();
 
-    println!("OVERLAP UPDATES: {:?}", overlapping_updates);
+    println!("OVERLAP UPDATES: {:?}", overlapping_updates.len());
 
     // Read updates from the second file starting where the first file left off
     // let mut file2_updates: Vec<Update> = dtf::get_range_in_file(
@@ -187,7 +187,7 @@ fn combine_files(
         .collect();
     drop(full_file2);
 
-    println!("FILE2 UPDATES: {:?}", file2_updates);
+    println!("FILE2 UPDATES: {:?}", file2_updates.len());
 
     // Concat the buffers together, deduplicate, and output into a DTF file
     let mut joined_updates = file1_updates;
