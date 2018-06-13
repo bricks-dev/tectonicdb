@@ -47,6 +47,14 @@ Examples:
                 .takes_value(true)
                 .index(3)
         )
+        .arg(
+            Arg::with_name("discontinuity_cutoff")
+                .short("c")
+                .value_name("DISCONTINUITY_CUTOFF")
+                .help("Allowed gap between file updates in milliseconds")
+                .default_value("0")
+                .takes_value(true)
+        )
         .get_matches();
 
     let input1_filename = matches
@@ -57,6 +65,11 @@ Examples:
         .expect(USAGE);
     let output_filename = matches
         .value_of("output")
+        .expect(USAGE);
+    let discontinuity_cutoff = matches
+        .value_of("discontinuity_cutoff")
+        .unwrap()
+        .parse()
         .expect(USAGE);
 
     // Get metadata for both of the input files to determine which one starts first
@@ -74,12 +87,12 @@ Examples:
     }
 
     let (start_filename, start_metadata, end_filename, end_metadata) = if input1_metadata.min_ts > input2_metadata.min_ts {
-        (input1_filename, input1_metadata, input2_filename, input2_metadata)
-    } else {
         (input2_filename, input2_metadata, input1_filename, input1_metadata)
+    } else {
+        (input1_filename, input1_metadata, input2_filename, input2_metadata)
     };
 
-    match combine_files(start_filename, start_metadata, end_filename, end_metadata, output_filename) {
+    match combine_files(start_filename, start_metadata, end_filename, end_metadata, output_filename, discontinuity_cutoff) {
         Ok(()) => println!("Successfully merged files and output to {}", output_filename),
         Err(err) => {
             println!("{}", err);
@@ -93,9 +106,10 @@ fn combine_files(
     start_metadata: Metadata,
     end_filename: &str,
     end_metadata: Metadata,
-    output_filename: &str
+    output_filename: &str,
+    discontinuity_cutoff: u64,
 ) -> Result<(), String> {
-    if start_metadata.max_ts < end_metadata.min_ts {
+    if start_metadata.max_ts + discontinuity_cutoff < end_metadata.min_ts {
         return Err("ERROR: The provided input files are not continuous!".into());
     }
 
@@ -251,7 +265,7 @@ fn dtf_merging() {
     ];
 
     // Concat the files and verify that they contain the correct data
-    combine_files(filename1, metadata1, filename2, metadata2, output_filename).unwrap();
+    combine_files(filename1, metadata1, filename2, metadata2, output_filename, 0).unwrap();
     let merged_updates: Vec<Update> = dtf::decode(output_filename, None).unwrap();
 
     remove_file(filename1).unwrap();
