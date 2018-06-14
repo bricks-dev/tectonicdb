@@ -9,7 +9,7 @@ mkdir tectonic && cd tectonic
 wget https://github.com/rickyhan/tectonicdb/releases/download/0.2/tectonic-server
 chmod +x tectonic-server
 ./tectonic-server --help
-./tectonic-server -p 9002 -f db -vv
+./tectonic-server -p 9002 -f db
 ```
 
 TectonicDB communicates over TCP:
