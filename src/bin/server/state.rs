@@ -140,7 +140,7 @@ impl<'a> Store<'a> {
             };
             match result {
                 Ok(_) => debug!("Successfully flushed."),
-                Err(_) => error!("Error flushing file."),
+                Err(err) => error!("Error flushing file: {:?}", err),
             };
 
             // clear
