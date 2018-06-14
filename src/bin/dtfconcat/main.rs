@@ -47,6 +47,14 @@ Examples:
                 .takes_value(true)
                 .index(3)
         )
+        .arg(
+            Arg::with_name("discontinuity_cutoff")
+                .short("c")
+                .value_name("DISCONTINUITY_CUTOFF")
+                .help("Allowed gap between file updates in milliseconds")
+                .default_value("0")
+                .takes_value(true)
+        )
         .get_matches();
 
     let input1_filename = matches
@@ -57,6 +65,11 @@ Examples:
         .expect(USAGE);
     let output_filename = matches
         .value_of("output")
+        .expect(USAGE);
+    let discontinuity_cutoff = matches
+        .value_of("discontinuity_cutoff")
+        .unwrap()
+        .parse()
         .expect(USAGE);
 
     // Get metadata for both of the input files to determine which one starts first
@@ -74,12 +87,12 @@ Examples:
     }
 
     let (start_filename, start_metadata, end_filename, end_metadata) = if input1_metadata.min_ts > input2_metadata.min_ts {
-        (input1_filename, input1_metadata, input2_filename, input2_metadata)
-    } else {
         (input2_filename, input2_metadata, input1_filename, input1_metadata)
+    } else {
+        (input1_filename, input1_metadata, input2_filename, input2_metadata)
     };
 
-    match combine_files(start_filename, start_metadata, end_filename, end_metadata, output_filename) {
+    match combine_files(start_filename, start_metadata, end_filename, end_metadata, output_filename, discontinuity_cutoff) {
         Ok(()) => println!("Successfully merged files and output to {}", output_filename),
         Err(err) => {
             println!("{}", err);
@@ -93,9 +106,10 @@ fn combine_files(
     start_metadata: Metadata,
     end_filename: &str,
     end_metadata: Metadata,
-    output_filename: &str
+    output_filename: &str,
+    discontinuity_cutoff: u64,
 ) -> Result<(), String> {
-    if start_metadata.max_ts < end_metadata.min_ts {
+    if start_metadata.max_ts + discontinuity_cutoff < end_metadata.min_ts {
         return Err("ERROR: The provided input files are not continuous!".into());
     }
 
@@ -116,7 +130,7 @@ fn combine_files(
         .cloned()
         .collect();
 
-    println!("FILE1 UPDATES: {:?}", file1_updates);
+    println!("FILE1 UPDATES: {:?}", file1_updates.len());
 
     // Read updates from the millisecond of overlap between the two files
     // let mut overlap_updates_1: Vec<Update> = dtf::get_range_in_file(
@@ -158,7 +172,7 @@ fn combine_files(
         .collect();
     overlapping_updates.sort();
 
-    println!("OVERLAP UPDATES: {:?}", overlapping_updates);
+    println!("OVERLAP UPDATES: {:?}", overlapping_updates.len());
 
     // Read updates from the second file starting where the first file left off
     // let mut file2_updates: Vec<Update> = dtf::get_range_in_file(
@@ -173,7 +187,7 @@ fn combine_files(
         .collect();
     drop(full_file2);
 
-    println!("FILE2 UPDATES: {:?}", file2_updates);
+    println!("FILE2 UPDATES: {:?}", file2_updates.len());
 
     // Concat the buffers together, deduplicate, and output into a DTF file
     let mut joined_updates = file1_updates;
@@ -251,7 +265,7 @@ fn dtf_merging() {
     ];
 
     // Concat the files and verify that they contain the correct data
-    combine_files(filename1, metadata1, filename2, metadata2, output_filename).unwrap();
+    combine_files(filename1, metadata1, filename2, metadata2, output_filename, 0).unwrap();
     let merged_updates: Vec<Update> = dtf::decode(output_filename, None).unwrap();
 
     remove_file(filename1).unwrap();
