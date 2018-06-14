@@ -5,3 +5,4 @@ circle.yml
 .gitignore
 LICENSE
 docs
+db
