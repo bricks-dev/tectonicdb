@@ -63,9 +63,13 @@ version = "0.3.7"
 features = ["serde", "v4"]
 version = "0.5.1"
 
+[dependencies.rayon]
+optional = true
+version = "1.0.1"
+
 [features]
 default = ["gcs"]
-gcs = ["tempdir"]
+gcs = ["tempdir", "rayon"]
 
 [lib]
 crate-type = ["cdylib", "dylib", "rlib"]
