@@ -155,6 +155,7 @@ fn combine_files(
             current_metadata.max_ts + 1
         };
 
+        println!("{}", current.filename);
         let full_file = dtf::decode(&current.filename, None).map_err(|_| DTF_ERROR)?;
 
         // Get current file's non-overlapping updates
