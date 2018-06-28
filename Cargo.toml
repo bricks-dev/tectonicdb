@@ -70,6 +70,7 @@ version = "1.0.1"
 [features]
 default = ["gcs"]
 gcs = ["tempdir", "rayon"]
+autoflusher = []
 
 [lib]
 crate-type = ["cdylib", "dylib", "rlib"]
