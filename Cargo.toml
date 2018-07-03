@@ -61,10 +61,6 @@ version = "0.5.1"
 optional = true
 version = "0.3.7"
 
-[features]
-default = ["gcs"]
-gcs = ["tempdir"]
-
 [lib]
 crate-type = ["cdylib", "dylib", "rlib"]
 name = "libtectonic"
