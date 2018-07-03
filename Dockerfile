@@ -11,7 +11,7 @@ RUN sudo chown -R rust:rust /home/rust
 # This is necessary due to a bug in Rust: https://github.com/rust-lang-nursery/rustup.rs/issues/1239
 RUN rm -rf ~/.rustup
 RUN curl https://sh.rustup.rs -sSf | \
-    sh -s -- -y --default-toolchain nightly-2018-06-12 && \
+    sh -s -- -y --default-toolchain nightly-2018-06-28 && \
     rustup target add x86_64-unknown-linux-musl
 
 WORKDIR ~
@@ -19,7 +19,7 @@ WORKDIR ~
 # Build the `tectonic-server` application.
 RUN PKG_CONFIG_PATH=/usr/local/musl/lib/pkgconfig \
     LDFLAGS=-L/usr/local/musl/lib \
-    cargo build --bin tectonic-server --target x86_64-unknown-linux-musl --release
+    cargo build --bin tectonic-server --features autoflusher --target x86_64-unknown-linux-musl --release
 
 # Build the `dtfcat` application.
 RUN PKG_CONFIG_PATH=/usr/local/musl/lib/pkgconfig \

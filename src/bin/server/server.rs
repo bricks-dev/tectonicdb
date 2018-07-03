@@ -88,12 +88,17 @@ pub fn run_server(host: &str, port: &str, settings: &Settings) {
     let signal_handler_threadstate = ThreadState::new(
         Arc::clone(&global),
         Arc::clone(&store),
-        subscriptions_tx
+        subscriptions_tx.clone(),
     );
     let signal_handler = create_signal_handler(signal_handler_threadstate);
     handle.spawn(signal_handler);
 
-    run_plugins(global.clone());
+    let plugins_threadstate = ThreadState::new(
+        Arc::clone(&global),
+        Arc::clone(&store),
+        subscriptions_tx.clone()
+    );
+    run_plugins(global.clone(), plugins_threadstate);
 
     // main loop
     let done = listener.incoming().for_each(move |(socket, _addr)| {
