@@ -117,6 +117,8 @@ pub fn parse_get_range(string: &str) -> Option<(u64, u64)> {
             [0]
             .parse::<u64>()
             .unwrap() * 1000;
+
+        info!("From epoch to epoch: {}, {}", from_epoch, to_epoch);
         Some((from_epoch, to_epoch))
     } else {
         None

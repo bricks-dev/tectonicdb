@@ -549,17 +549,26 @@ impl<'thr, 'store> ThreadState<'thr, 'store> {
         let rdr = self.global.read().unwrap();
         let name: &str = self.current_store_name.borrow();
         let &(ref vecs, _) = rdr.vec_store.get(name)?;
-
+        let empty = box Vec::new();
         // if range, filter mem
         let acc = catch! {
             let (min_ts, max_ts) = range?;
-            if !within_range(min_ts, max_ts, vecs.first()?.ts, vecs.last()?.ts) { return None; }
+            info!("min_ts, max_ts: {}, {}", min_ts, max_ts);
+            info!("mem_min_tx, mem_max_tx: {}, {}", vecs.first()?.ts, vecs.last()?.ts);
+            info!("loc: {:?}", loc);
+            if !within_range(min_ts, max_ts, vecs.first()?.ts, vecs.last()?.ts) {
+                info!("out of range");
+                return None;
+            }
+            info!("in range");
             box vecs.iter()
                 .filter(|up| up.ts < max_ts && up.ts > min_ts)
                 .map(|up| up.to_owned())
                 .collect::<Vec<_>>()
-        }.unwrap_or(vecs.to_owned());
-
+        }.unwrap_or(empty);
+        // }.unwrap_or(vecs.to_owned());
+        // info!("vecs: {:?}", vecs.to_owned());
+        // info!("acc: {:?}", acc);
         // if only requested items in memory
         if let Loc::Mem = loc {
             return self._return_aux(&acc, format);
