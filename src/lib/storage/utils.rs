@@ -83,7 +83,7 @@ pub fn total_folder_updates_len(folder: &str) -> Result<usize, io::Error> {
                 io::ErrorKind::InvalidInput,
                 format!("Unable to read dir entries: {:?}", e),
             ))
-        }
+        },
         Ok(entries) => {
             let mut count = entries
                 .map(|entry| parse_dtf_entry(folder, entry))
@@ -95,6 +95,6 @@ pub fn total_folder_updates_len(folder: &str) -> Result<usize, io::Error> {
                 });
 
             Ok(count as usize)
-        }
+        },
     }
 }

@@ -13,6 +13,7 @@ use std::sync::{Arc, RwLock};
 use state::{SharedState, ThreadState};
 
 /// Run each plugin in a separate thread
+#[allow(unused_variables)]
 pub fn run_plugins(global: Arc<RwLock<SharedState>>, threadstate: ThreadState<'static, 'static>) {
     history::run(global.clone());
 
