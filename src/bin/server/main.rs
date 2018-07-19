@@ -102,38 +102,6 @@ fn main() {
     server::run_server(&host, &port, &settings);
 }
 
-<<<<<<< HEAD
-fn prepare_logger(verbosity: u8, log_file: &str) {
-    let level = match verbosity {
-        0 => log::LevelFilter::Error,
-        1 => log::LevelFilter::Warn,
-        2 => log::LevelFilter::Info,
-        3 => log::LevelFilter::Debug,
-        _ => log::LevelFilter::max(),
-    };
-
-    fern::Dispatch::new()
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "{}[{}][{}] {}",
-                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S:%f]"),
-                record.target(),
-                record.level(),
-                message
-            ))
-        })
-        .level(level)
-        .level_for("tokio_core", log::LevelFilter::Info)
-        .level_for("tokio_reactor", log::LevelFilter::Info)
-        .level_for("hyper", log::LevelFilter::Info)
-        .chain(std::io::stdout())
-        .chain(fern::log_file(log_file).unwrap())
-        .apply()
-        .unwrap();
-}
-
-=======
->>>>>>> ecca4d27f754d4f843520748532933619c68db6e
 /// Gets configuration values from CLI arguments, falling back to environment variables
 /// if they don't exist and to default values if neither exist.
 fn get_matches<'a>() -> ArgMatches<'a> {

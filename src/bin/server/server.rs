@@ -43,13 +43,9 @@ fn create_signal_handler(
             println!("Signal: {}", signal);
             info!("`TERM` signal recieved; flushing all stores...");
             state.flushall();
-<<<<<<< HEAD
-            info!("All stores flushed; exiting...");
-=======
             info!("All stores flushed; calling plugin exit hooks...");
             run_plugin_exit_hooks(&state);
             info!("Plugin exit hooks called; exiting...");
->>>>>>> ecca4d27f754d4f843520748532933619c68db6e
             exit(0);
 
             #[allow(unreachable_code)]
@@ -92,25 +88,17 @@ pub fn run_server(host: &str, port: &str, settings: &Settings) {
     let signal_handler_threadstate = ThreadState::new(
         Arc::clone(&global),
         Arc::clone(&store),
-<<<<<<< HEAD
-        subscriptions_tx
-=======
         subscriptions_tx.clone(),
->>>>>>> ecca4d27f754d4f843520748532933619c68db6e
     );
     let signal_handler = create_signal_handler(signal_handler_threadstate);
     handle.spawn(signal_handler);
 
-<<<<<<< HEAD
-    run_plugins(global.clone());
-=======
     let plugins_threadstate = ThreadState::new(
         Arc::clone(&global),
         Arc::clone(&store),
         subscriptions_tx.clone()
     );
     run_plugins(global.clone(), plugins_threadstate);
->>>>>>> ecca4d27f754d4f843520748532933619c68db6e
 
     // main loop
     let done = listener.incoming().for_each(move |(socket, _addr)| {

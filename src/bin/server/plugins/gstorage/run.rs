@@ -4,14 +4,6 @@
 /// then upload all the dtf files to google storage via REST endpoint
 /// and once confirmed, delete local files.
 
-<<<<<<< HEAD
-use std::{thread, fs};
-use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
-use std::time::Duration;
-
-extern crate tempdir;
-=======
 use std::{fs::{self, DirEntry}, io, thread};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -22,7 +14,6 @@ use self::rayon::prelude::*;
 extern crate tempdir;
 use self::tempdir::TempDir;
 use uuid::Uuid;
->>>>>>> ecca4d27f754d4f843520748532933619c68db6e
 
 use state::{SharedState, ThreadState};
 use plugins::gstorage::GStorageConfig;
@@ -65,8 +56,6 @@ fn upload_file(path_buf: PathBuf, conf: &GStorageConfig) {
         match fs::remove_file(path_buf.as_path()) {
             Ok(_) => debug!("DTF file successfully deleted."),
             Err(err) => error!("Error while deleting DTF file: {:?}", err),
-<<<<<<< HEAD
-=======
         }
     }
 }
@@ -101,7 +90,6 @@ fn upload_all_files(dir_path: &Path) {
                 upload_file(file_path, &conf);
             },
             Err(err) => error!("Error while reading dir entry: {:?}", err),
->>>>>>> ecca4d27f754d4f843520748532933619c68db6e
         }
     });
 }
@@ -162,70 +150,12 @@ pub fn run(global: Arc<RwLock<SharedState>>) {
         let conf = GStorageConfig::new().unwrap();
         let min_file_size_bytes = conf.min_file_size;
         info!("Initializing GStorage plugin with config: {:?}", conf);
-<<<<<<< HEAD
-        let dtf_directory = global_copy.read().unwrap().settings.dtf_folder.clone();
-        let tmp_dir = tempdir::TempDir::new("tectonic")
-            .expect("Unable to create temporary directory!");
-        let tmp_dir_path = tmp_dir.path();
-=======
         let dtf_directory = { global_copy.read().unwrap().settings.dtf_folder.clone() };
->>>>>>> ecca4d27f754d4f843520748532933619c68db6e
 
         loop {
             thread::sleep(Duration::from_secs(conf.upload_interval_secs));
             info!("Gstorage checking to see if any files need upload...");
 
-<<<<<<< HEAD
-            // Move all DTF files in the db directory to the temporary directory for uploading
-            for path_res in fs::read_dir(&dtf_directory).unwrap() {
-                match path_res {
-                    Ok(entry) => {
-                        let src_path = entry.path();
-                        let dtf_file_name = src_path.file_name()
-                            .unwrap()
-                            .to_str()
-                            .unwrap();
-                        let metadata = match entry.metadata() {
-                            Ok(metadata) => metadata,
-                            Err(err) => {
-                                error!("Error while fetching DTF metadata: {:?}", err);
-                                return;
-                            },
-                        };
-                        let file_size_bytes: u64 = metadata.len();
-
-                        if file_size_bytes >= min_file_size_bytes {
-                            // move the file to the temporary directory to be uploaded
-                            let dst_path = tmp_dir_path.join(dtf_file_name);
-                            match fs::rename(src_path.clone(), dst_path) {
-                                Ok(_) => (),
-                                Err(err) => error!(
-                                    "Error while moving DTF file for upload: {:?}",
-                                    err
-                                ),
-                            }
-                        }
-                    },
-                    Err(err) => error!("Error while reading dir entry: {:?}", err),
-                }
-            }
-
-            // Upload all files in the temporary directory
-            for path_res in fs::read_dir(&tmp_dir_path).unwrap() {
-                match path_res {
-                    Ok(entry) => {
-                        // Upload the DTF file to Google Cloud Storage and post its metadata to
-                        // the DCB
-                        let file_path = entry.path();
-                        info!("Found file to upload: {:?}", file_path);
-                        upload_file(file_path, &conf);
-                    },
-                    Err(err) => error!("Error while reading dir entry: {:?}", err),
-                }
-            }
-        }
-    });
-=======
             // Copy all files over the size threshhold into the temporary directory for uploading
             copy_files(&dtf_directory, Some(min_file_size_bytes));
 
@@ -240,5 +170,4 @@ pub fn run_exit_hook(state: &ThreadState<'static, 'static>) {
     let dtf_dir_path = { &state.global.read().unwrap().settings.dtf_folder.clone() };
     copy_files(&dtf_dir_path, None);
     upload_all_files(&TMP_DIR.path())
->>>>>>> ecca4d27f754d4f843520748532933619c68db6e
 }
