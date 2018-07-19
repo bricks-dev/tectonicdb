@@ -7,11 +7,11 @@ jobs:
     steps:
       - run: apk update
       - run: apk upgrade
-      - run: apk add --no-cache bash git openssh
+      - run: apk add --no-cache bash curl git openssh python
       - checkout
       - setup_remote_docker
-      - run: docker build -t fatwhaleltd/tectonicdb .
-      - run: docker create --name tectonicdb fatwhaleltd/tectonicdb
+      - run: docker build -t $DOCKER_REPO .
+      - run: docker create --name tectonicdb $DOCKER_REPO
       - run: docker cp tectonicdb:/usr/local/bin/tectonic-server /tmp/tectonic-server
       - run: docker cp tectonicdb:/usr/local/bin/dtfcat /tmp/dtfcat
       - run: docker cp tectonicdb:/usr/local/bin/dtfsplit /tmp/dtfsplit
@@ -28,16 +28,35 @@ jobs:
       - store_artifacts:
           path: /tmp/dtfconcat
           destination: dtfconcat
-      - run: |
-          docker login --username=$DOCKER_USER --password=$DOCKER_PASSWORD
-          docker push fatwhaleltd/tectonicdb:latest
+      # Install gcloud SDK
+      - run: curl https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-200.0.0-linux-x86_64.tar.gz > /tmp/gcloud.tgz
+      - run: mkdir /opt && tar -xzf /tmp/gcloud.tgz -C /opt
+      - run: ln -s /opt/google-cloud-sdk/bin/gcloud /bin/gcloud
+      - run:
+          name: Decode service account credentials
+          command: echo $GCLOUD_SERVICE_KEY | base64 -d > ${HOME}/gcloud-service-key.json
+      - run: gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
+      - run: gcloud --quiet config set project ${GCLOUD_PROJECT}
+      - run: gcloud auth configure-docker
+      - run: docker tag ${DOCKER_REPO}:latest ${DOCKER_REPO}:${CIRCLE_SHA1}
+      - run: gcloud docker -- push ${DOCKER_REPO}:${CIRCLE_SHA1}
+      - run:
+          shell: /bin/bash
+          command: |
+            if [[ $CIRCLE_BRANCH == "master" ]]; then \
+            gcloud docker -- push ${DOCKER_REPO}:latest; fi
+      - run:
+          shell: /bin/bash
+          command: |
+            if [[ $CIRCLE_BRANCH != "master" && -z $CIRCLE_TAG ]]; then \
+            docker tag ${DOCKER_REPO} ${DOCKER_REPO}:$CIRCLE_BRANCH && \
+            gcloud docker -- push ${DOCKER_REPO}:$CIRCLE_BRANCH; fi
       - run:
           shell: /bin/bash
           command: |
             if [[ $CIRCLE_TAG =~ ^prod-.*$ ]]; then \
-            docker tag fatwhaleltd/tectonicdb fatwhaleltd/tectonicdb:prod && \
-            docker push fatwhaleltd/tectonicdb:prod; fi
-
+            docker tag ${DOCKER_REPO} ${DOCKER_REPO}:prod && \
+            gcloud docker -- push ${DOCKER_REPO}:prod; fi
   build_lib:
     docker:
       - image: ubuntu:18.04
@@ -52,7 +71,7 @@ jobs:
       - run: |
           test -f ~/.cargo/bin/cargo || (curl https://sh.rustup.rs -s > /home/install.sh &&
           chmod +x /home/install.sh &&
-          sh /home/install.sh -y --verbose --default-toolchain nightly-2018-03-26)
+          sh /home/install.sh -y --verbose --default-toolchain nightly-2018-07-09)
       - save_cache:
           key: v2-cargo-nightly-2017-03-26-{{ arch }}
           paths:
@@ -62,7 +81,7 @@ jobs:
           paths:
             - ~/project/target/
       - run: |
-          ~/.cargo/bin/rustup default nightly-2018-03-26 && \
+          ~/.cargo/bin/rustup default nightly-2018-07-09 && \
           ~/.cargo/bin/cargo build --lib --release
       - save_cache:
           key: v1-tectonicdb-lib-{{ arch }}-{{ checksum "Cargo.lock" }}
@@ -71,7 +90,6 @@ jobs:
       - store_artifacts:
           path: ~/project/target/release/liblibtectonic.so
           destination: libtectonic.so
-
   test:
     docker:
       - image: ubuntu:18.04
@@ -86,7 +104,7 @@ jobs:
       - run: |
           test -f ~/.cargo/bin/cargo || (curl https://sh.rustup.rs -s > /home/install.sh &&
           chmod +x /home/install.sh &&
-          sh /home/install.sh -y --verbose --default-toolchain nightly-2018-03-26)
+          sh /home/install.sh -y --verbose --default-toolchain nightly-2018-07-09)
       - save_cache:
           key: v2-cargo-nightly-2017-03-26-{{ arch }}
           paths:
@@ -96,26 +114,18 @@ jobs:
           paths:
             - ~/project/target/
       - run: |
-          ~/.cargo/bin/rustup default nightly-2018-03-26 && \
+          ~/.cargo/bin/rustup default nightly-2018-07-09 && \
           ~/.cargo/bin/cargo test --no-fail-fast
       - save_cache:
           key: v1-tectonicdb-test-{{ arch }}-{{ checksum "Cargo.lock" }}
           paths:
             - ~/project/target/
-
 workflows:
   version: 2
   build_and_test:
     jobs:
       - test
-      - build:
-          filters:
-            branches:
-              only:
-                - master
-            tags:
-              only:
-                - /prod-.*/
+      - build
       - build_lib:
           filters:
             branches:

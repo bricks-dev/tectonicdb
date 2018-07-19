@@ -9,10 +9,12 @@ extern crate time;
 #[macro_use]
 extern crate serde_derive;
 extern crate openssl_probe;
+#[macro_use]
+extern crate lazy_static;
 
 #[macro_use]
 extern crate log;
-extern crate fern;
+extern crate stackdriver_logging_utils;
 
 extern crate uuid;
 extern crate circular_queue;
@@ -33,6 +35,7 @@ mod settings;
 mod subscription;
 
 use clap::{Arg, App, ArgMatches};
+use stackdriver_logging_utils::init_default_logger;
 
 use settings::{key_or_default, key_or_none};
 
@@ -53,7 +56,6 @@ fn main() {
         .value_of("dtf_folder")
         .map(String::from)
         .unwrap_or(key_or_default("TECTONICDB_DTF_FOLDER", "db"));
-    let verbosity = matches.occurrences_of("v") as u8;
     let autoflush = {
         let cli_setting: bool = matches.is_present("autoflush");
         let env_setting = key_or_none("TECTONICDB_AUTOFLUSH");
@@ -79,11 +81,6 @@ fn main() {
         .map(String::from)
         .unwrap_or(key_or_default("TECTONICDB_HIST_Q_CAPACITY", "300"));
 
-    let log_file = matches
-        .value_of("log_file")
-        .map(String::from)
-        .unwrap_or(key_or_default("TECTONICDB_LOG_FILE_NAME", "tectonic.log"));
-
     let settings = settings::Settings {
         autoflush: autoflush,
         dtf_folder: dtf_folder.to_owned(),
@@ -92,7 +89,8 @@ fn main() {
         hist_q_capacity: hist_q_capacity.parse().unwrap(),
     };
 
-    prepare_logger(verbosity, &log_file);
+    init_default_logger();
+
     info!(r##"
            _/                            _/                          _/
         _/_/_/_/    _/_/      _/_/_/  _/_/_/_/    _/_/    _/_/_/          _/_/_/
@@ -104,6 +102,7 @@ fn main() {
     server::run_server(&host, &port, &settings);
 }
 
+<<<<<<< HEAD
 fn prepare_logger(verbosity: u8, log_file: &str) {
     let level = match verbosity {
         0 => log::LevelFilter::Error,
@@ -133,6 +132,8 @@ fn prepare_logger(verbosity: u8, log_file: &str) {
         .unwrap();
 }
 
+=======
+>>>>>>> ecca4d27f754d4f843520748532933619c68db6e
 /// Gets configuration values from CLI arguments, falling back to environment variables
 /// if they don't exist and to default values if neither exist.
 fn get_matches<'a>() -> ArgMatches<'a> {
@@ -164,9 +165,6 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .help("Sets the folder to serve dtf files")
                 .takes_value(true),
         )
-        .arg(Arg::with_name("v").short("v").multiple(true).help(
-            "Sets the level of verbosity",
-        ))
         .arg(Arg::with_name("autoflush").short("a").help(
             "Sets autoflush (default is false)",
         ))
@@ -185,13 +183,6 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .help(
                     "Sets the history record granularity interval. (default 60s)",
                 ),
-        )
-        .arg(
-            Arg::with_name("log_file")
-                .short("l")
-                .long("log_file")
-                .value_name("LOG_FILE")
-                .help("Sets the log file to write to"),
         )
         .get_matches()
 }

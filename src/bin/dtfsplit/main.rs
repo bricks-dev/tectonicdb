@@ -1,9 +1,12 @@
+#[macro_use]
+
 extern crate clap;
 extern crate byteorder;
 extern crate libtectonic;
 use libtectonic::dtf;
 
 use std::path::Path;
+use std::process::exit;
 use clap::{Arg, App};
 
 fn main() {
@@ -28,22 +31,48 @@ Examples:
                 .long("batch_size")
                 .value_name("BATCH_SIZE")
                 .help("Specify the number of batches to read")
-                .required(true)
+                .required(false)
                 .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("FILE_SIZE")
+                .short("s")
+                .long("file_size")
+                .value_name("FILE_SIZE")
+                .help("Specify the target file size")
+                .required(false)
+                .takes_value(true)
         )
         .get_matches();
 
     // single file
     let fname = matches.value_of("input").expect("Must supply input");
-    let batch_size = matches.value_of("BATCH").unwrap().parse().unwrap();
+    let batch_size = value_t!(matches, "BATCH", u32).unwrap_or(0);
+    let file_size = value_t!(matches, "FILE_SIZE", u64).unwrap_or(0);
     let file_stem = Path::new(fname).file_stem().expect("Input not a valid file").to_str().unwrap();
+
+    if (batch_size == 0 && file_size == 0) || (batch_size > 0 && file_size > 0) {
+        println!("Please provide only one of --batch-size or --file-size");
+        exit(1);
+    }
 
     println!("Reading: {}", fname);
     let meta = dtf::read_meta(fname).unwrap();
     let rdr = dtf::DTFBufReader::new(fname, batch_size);
-    for (i, batch) in rdr.enumerate() {
+
+    if batch_size > 0 {
+        for (i, batch) in rdr.enumerate() {
+            let outname = format!("{}-{}.dtf", file_stem, i);
+            println!("Writing to {}", outname);
+            dtf::encode(&outname, &meta.symbol, &batch).unwrap();
+        }
+        exit(0);
+    }
+
+    for (i, batch) in rdr.as_chunks(file_size).enumerate() {
         let outname = format!("{}-{}.dtf", file_stem, i);
         println!("Writing to {}", outname);
         dtf::encode(&outname, &meta.symbol, &batch).unwrap();
     }
+
 }

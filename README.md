@@ -57,7 +57,7 @@ chmod +x tectonic-server
 For example:
 
 ```bash
-./tectonic-server -vv -a -i 10000
+./tectonic-server -a -i 10000
 # run the server on INFO verbosity
 # turn on autoflush and flush every 10000
 ```

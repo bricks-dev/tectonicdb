@@ -1,5 +1,6 @@
-//! Given two DTF files, combines the data within them and outputs a single DTF file that contains
-//! the data from both of them after discarding any duplicate updates.
+//! Given multiple DTF files, combines the data within them and outputs a single
+//! DTF file that contains the data from both of them after discarding any
+//! duplicate updates.
 
 extern crate clap;
 extern crate libtectonic;
@@ -12,174 +13,206 @@ use clap::{App, Arg};
 use libtectonic::dtf::{self, Update};
 use libtectonic::dtf::file_format::Metadata;
 
-const USAGE: &'static str = "Usage: `dtfconcat input1 input2 output`";
+const USAGE: &'static str = "Usage: `dtfconcat input1 input2 input3 -o output`";
 const DTF_ERROR: &'static str = "Unable to parse input DTF file!";
 
+
+struct InputFile {
+    pub filename: String,
+    pub metadata: Metadata,
+}
+
 fn main() {
-    let matches = App::new("dtfsplit")
+    let matches = App::new("dtfconcat")
         .version("1.0.0")
-        .author("Casey Primozic <ameo@fatwhale.com>")
-        .about("Concatenates two DTF files into a single output file.
+        .about("Concatenates multiple DTF files into a single output file.
 Examples:
-    dtfconcat file1.dtf file2.dtf output.dtf
+    dtfconcat file1.dtf file2.dtf file3.dtf file4.dtf -o output.dtf
 ")
         .arg(
-            Arg::with_name("input1")
-                .value_name("INPUT1")
+            Arg::with_name("input_files")
+                .value_name("INPUT")
+                .multiple(true)
                 .help("First file to read")
                 .required(true)
                 .takes_value(true)
-                .index(1)
-        )
-        .arg(
-            Arg::with_name("input2")
-                .value_name("INPUT2")
-                .help("Second file to read")
-                .required(true)
-                .takes_value(true)
-                .index(2)
         )
         .arg(
             Arg::with_name("output")
+                .short("o")
                 .value_name("OUTPUT")
                 .help("Output file")
                 .required(true)
                 .takes_value(true)
-                .index(3)
+        )
+        .arg(
+            Arg::with_name("discontinuity_cutoff")
+                .short("c")
+                .value_name("DISCONTINUITY_CUTOFF")
+                .help("Allowed gap between file updates in milliseconds")
+                .default_value("0")
+                .takes_value(true)
         )
         .get_matches();
 
-    let input1_filename = matches
-        .value_of("input1")
-        .expect(USAGE);
-    let input2_filename = matches
-        .value_of("input2")
-        .expect(USAGE);
+    let filenames: Vec<&str> = matches
+        .values_of("input_files")
+        .unwrap()
+        .collect();
     let output_filename = matches
         .value_of("output")
         .expect(USAGE);
+    let discontinuity_cutoff: u64 = matches
+        .value_of("discontinuity_cutoff")
+        .unwrap()
+        .parse()
+        .expect(USAGE);
 
-    // Get metadata for both of the input files to determine which one starts first
-    let input1_metadata = dtf::read_meta(input1_filename).expect(DTF_ERROR);
-    let input2_metadata = dtf::read_meta(input2_filename).expect(DTF_ERROR);
+    if filenames.len() < 2 {
+        println!("Please specify at least 2 input files.");
+        exit(1);
+    }
 
-    // Sanity checks to make sure they're the same symbol and continuous
-    if input1_metadata.symbol != input2_metadata.symbol {
+    // Get metadata for input files
+    let mut input_files: Vec<InputFile> = filenames
+        .iter()
+        .map(|filename| InputFile {
+            filename: (*filename).to_string(),
+            metadata: dtf::read_meta(filename).expect(DTF_ERROR)
+        })
+        .collect();
+
+    // Sanity checks to make sure they're all the same symbol
+    let mut unique_symbols: Vec<String> = input_files
+        .iter()
+        .map(|f| f.metadata.symbol.to_string())
+        .collect();
+    unique_symbols.sort_unstable();
+    unique_symbols.dedup();
+    if unique_symbols.len() > 1 {
         println!(
-            "ERROR: The two input files provided have different symbols: {}, {}",
-            input1_metadata.symbol,
-            input2_metadata.symbol
+            "ERROR: The input files provided have different symbols. Found {:?}",
+            unique_symbols
         );
         exit(1);
     }
 
-    let (start_filename, start_metadata, end_filename, end_metadata) = if input1_metadata.min_ts > input2_metadata.min_ts {
-        (input1_filename, input1_metadata, input2_filename, input2_metadata)
-    } else {
-        (input2_filename, input2_metadata, input1_filename, input1_metadata)
-    };
+    input_files.sort_by_key(|f| f.metadata.min_ts);
 
-    match combine_files(start_filename, start_metadata, end_filename, end_metadata, output_filename) {
-        Ok(()) => println!("Successfully merged files and output to {}", output_filename),
+    match combine_files(&input_files, output_filename, discontinuity_cutoff){
+        Ok(()) => println!("Successfully merged {} files and output to {}",
+                           input_files.len(), output_filename),
         Err(err) => {
             println!("{}", err);
             exit(1);
         }
     }
+
+}
+
+fn files_are_continuous(
+    files: &Vec<InputFile>,
+    discontinuity_cutoff: u64,
+) -> bool {
+    let mut prev = None;
+    for current in files {
+        if prev.is_none() {
+            prev = Some(current);
+            continue;
+        }
+        if prev.unwrap().metadata.max_ts + discontinuity_cutoff < current.metadata.min_ts {
+            return false;
+        }
+        prev = Some(current);
+    }
+    true
 }
 
 fn combine_files(
-    start_filename: &str,
-    start_metadata: Metadata,
-    end_filename: &str,
-    end_metadata: Metadata,
-    output_filename: &str
+    files: &Vec<InputFile>,
+    output_filename: &str,
+    discontinuity_cutoff: u64,
 ) -> Result<(), String> {
-    if start_metadata.max_ts < end_metadata.min_ts {
+
+    // Check for file continuity
+    if !files_are_continuous(files, discontinuity_cutoff) {
         return Err("ERROR: The provided input files are not continuous!".into());
     }
 
-    println!("START METADATA: {:?}\nEND METADATA: {:?}", start_metadata, end_metadata);
+    let symbol = files[0].metadata.symbol.clone();
 
-    let symbol = start_metadata.symbol.clone();
+    let mut joined_updates: Vec<Update> = Vec::new();
+    let mut previous_overlap_updates: Vec<Update> = Vec::new();
+    let mut previous_max_ts: u64 = 0;
 
-    // Read updates from the start file until the `start_ts` of the second file is reached
-    // let file1_updates: Vec<Update> = dtf::get_range_in_file(
-    //     start_filename,
-    //     start_metadata.min_ts,
-    //     start_metadata.max_ts - 1
-    // ).map_err(|_| DTF_ERROR)?;
-    let full_file1 = dtf::decode(start_filename, None).map_err(|_| DTF_ERROR)?;
-    let file1_updates: Vec<Update> = full_file1
-        .iter()
-        .filter(|&&Update { ts, .. }| ts >= start_metadata.min_ts && ts < start_metadata.max_ts)
-        .cloned()
-        .collect();
+    for (index, current) in files.iter().enumerate() {
 
-    println!("FILE1 UPDATES: {:?}", file1_updates);
+        let current_metadata = &current.metadata;
 
-    // Read updates from the millisecond of overlap between the two files
-    // let mut overlap_updates_1: Vec<Update> = dtf::get_range_in_file(
-    //     start_filename,
-    //     start_metadata.max_ts,
-    //     start_metadata.max_ts
-    // ).map_err(|_| DTF_ERROR)?;
-    let mut overlap_updates_1: Vec<Update> = full_file1
-        .iter()
-        .filter(|&&Update { ts, .. }| ts == start_metadata.max_ts)
-        .cloned()
-        .collect();
-    drop(full_file1);
-    let full_file2 = dtf::decode(end_filename, None).map_err(|_| DTF_ERROR)?;
-    // let mut overlap_updates_2: Vec<Update> = dtf::get_range_in_file(
-    //     end_filename,
-    //     start_metadata.max_ts,
-    //     start_metadata.max_ts
-    // ).map_err(|_| DTF_ERROR)?;
-    let mut overlap_updates_2: Vec<Update> = full_file2
-        .iter()
-        .filter(|&&Update { ts, .. }| ts == start_metadata.max_ts)
-        .cloned()
-        .collect();
-    overlap_updates_1.append(&mut overlap_updates_2);
+        let next_file_min_ts = if index + 1 < files.len() {
+            files[index+1].metadata.min_ts
+        } else {
+            current_metadata.max_ts + 1
+        };
 
-    // We have to deduplicate with a `HashSet` because `Update`s `Ord` implementation
-    // doesn't look at anything except timestamp.
-    // We have to serialize before storing because Rust doesn't let us hash floating
-    // point numbers because of `NaN`.
-    let mut overlapping_updates: HashSet<String> = overlap_updates_1
-        .iter()
-        .map(serde_json::to_string)
-        .map(Result::unwrap)
-        .collect();
-    let mut overlapping_updates: Vec<Update> = overlapping_updates
-        .drain()
-        .map(|s| serde_json::from_str(&s).unwrap())
-        .collect();
-    overlapping_updates.sort();
+        println!("{}", current.filename);
+        let full_file = dtf::decode(&current.filename, None).map_err(|_| DTF_ERROR)?;
 
-    println!("OVERLAP UPDATES: {:?}", overlapping_updates);
+        // Get current file's non-overlapping updates
+        let mut file_updates: Vec<Update> = full_file
+            .iter()
+            .filter(|&&Update { ts, .. }| {
+                ts >= previous_max_ts + 1 && ts < next_file_min_ts
+            })
+            .cloned()
+            .collect();
+        // Get potentially overlapping updates at the start of the current file
+        let mut current_overlap_updates: Vec<Update> = full_file
+            .iter()
+            .filter(|&&Update { ts, .. }| ts <= previous_max_ts)
+            .cloned()
+            .collect();
+        println!("CURRENT_OVERLAP_UPDATES = {}", current_overlap_updates.len());
 
-    // Read updates from the second file starting where the first file left off
-    // let mut file2_updates: Vec<Update> = dtf::get_range_in_file(
-    //     end_filename,
-    //     start_metadata.max_ts + 1,
-    //     end_metadata.max_ts
-    // ).map_err(|_| DTF_ERROR)?;
-    let mut file2_updates: Vec<Update> = full_file2
-        .iter()
-        .filter(|&&Update { ts, .. }| ts >= start_metadata.max_ts + 1)
-        .cloned()
-        .collect();
-    drop(full_file2);
+        // Compare current file's first updates with previous file's last updates
+        // and remove any duplicates.
+        //
+        // We have to deduplicate with a `HashSet` because `Update`s `Ord` implementation
+        // doesn't look at anything except timestamp.
+        // We have to serialize before storing because Rust doesn't let us hash floating
+        // point numbers because of `NaN`.
+        previous_overlap_updates.append(&mut current_overlap_updates);
+        let mut overlapping_updates: HashSet<String> = previous_overlap_updates
+            .iter()
+            .map(serde_json::to_string)
+            .map(Result::unwrap)
+            .collect();
+        let mut overlapping_updates: Vec<Update> = overlapping_updates
+            .drain()
+            .map(|s| serde_json::from_str(&s).unwrap())
+            .collect();
+        overlapping_updates.sort();
+        println!("OVERLAPPING_UPDATES = {}", overlapping_updates.len());
 
-    println!("FILE2 UPDATES: {:?}", file2_updates);
+        // Append all (dedupped overlapping and regular) updates to output
+        // vector
+        joined_updates.append(&mut overlapping_updates);
+        joined_updates.append(&mut file_updates);
 
-    // Concat the buffers together, deduplicate, and output into a DTF file
-    let mut joined_updates = file1_updates;
-    joined_updates.append(&mut overlapping_updates);
-    joined_updates.append(&mut file2_updates);
+        // Store updates at the end of the file to check for potential overlaps
+        // on next iteration
+        previous_overlap_updates = full_file
+            .iter()
+            .filter(|&&Update { ts, .. }| ts >= next_file_min_ts)
+            .cloned()
+            .collect();
+        previous_max_ts = current_metadata.max_ts;
+    }
+    // In case there's any updates that weren't checked for overlaps (from the
+    // last file we processed), add them at the end of the output vector.
+    joined_updates.append(&mut previous_overlap_updates);
 
+    // Write output file
     dtf::encode(output_filename, &symbol, &joined_updates)
         .map_err(|_| String::from("Error while writing output file!"))?;
 
@@ -250,8 +283,12 @@ fn dtf_merging() {
         (1012, 1012.),
     ];
 
+    let input_files = vec![
+        InputFile { filename: filename1.to_string(), metadata: metadata1 },
+        InputFile { filename: filename2.to_string(), metadata: metadata2 },
+    ];
     // Concat the files and verify that they contain the correct data
-    combine_files(filename1, metadata1, filename2, metadata2, output_filename).unwrap();
+    combine_files(&input_files, output_filename, 0).unwrap();
     let merged_updates: Vec<Update> = dtf::decode(output_filename, None).unwrap();
 
     remove_file(filename1).unwrap();

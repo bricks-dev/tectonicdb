@@ -40,7 +40,7 @@ static SYMBOL_OFFSET: u64 = 5;
 static LEN_OFFSET: u64 = 25;
 static MAX_TS_OFFSET: u64 = 33;
 static MAIN_OFFSET: u64 = 80; // main section start at 80
-// static ITEM_OFFSET : u64 = 13; // each item has 13 bytes
+static ITEM_OFFSET : u64 = 13; // each item has 13 bytes
 
 #[derive(Debug, Eq, PartialEq, PartialOrd)]
 pub struct Metadata {
@@ -502,7 +502,51 @@ impl DTFBufReader {
             batch_size,
         }
     }
+
+    pub fn as_chunks(self, chunk_size: u64) -> ChunkedDTFBufReader {
+        ChunkedDTFBufReader {
+            dtf_buf_reader: self,
+            chunk_size,
+        }
+    }
 }
+
+pub struct ChunkedDTFBufReader {
+    pub dtf_buf_reader: DTFBufReader,
+    chunk_size: u64,
+}
+
+impl Iterator for ChunkedDTFBufReader {
+    type Item = Vec<Update>;
+    fn next(&mut self) -> Option<Self::Item> {
+        let v = read_n_bytes_updates(
+            &mut self.dtf_buf_reader.rdr,
+            self.chunk_size,
+        ).ok()?;
+        if 0 != v.len() { Some(v) }
+        else { None }
+    }
+}
+
+pub fn read_n_bytes_updates<T: BufRead + Seek>(
+    mut rdr: &mut T,
+    chunk_size: u64,
+) -> Result<Vec<Update>, io::Error> {
+    let mut v: Vec<Update> = vec![];
+    // disregarding batch metadata and file headers, we can approximate the file
+    // size v would take by doing: v.len() * size of an update (ITEM_OFFSET)
+    let limit = chunk_size / ITEM_OFFSET;
+    if chunk_size == 0 { return Ok(v); }
+    while let Ok(is_ref) = rdr.read_u8() {
+        if is_ref == 0x1 {
+            rdr.seek(SeekFrom::Current(-1)).expect("ROLLBACK ONE BYTE");
+            v.extend(read_one_batch(&mut rdr)?);
+        }
+        if (v.len() as u64) > limit { break; }
+    }
+    Ok(v)
+}
+
 
 impl Iterator for DTFBufReader {
     type Item = Vec<Update>;
@@ -517,10 +561,8 @@ impl Iterator for DTFBufReader {
 fn read_n_batches<T: BufRead + Seek>(mut rdr: &mut T, num_rows: u32) -> Result<Vec<Update>, io::Error> {
     let mut v: Vec<Update> = vec![];
     let mut count = 0;
+    if num_rows == 0 { return Ok(v); }
     while let Ok(is_ref) = rdr.read_u8() {
-        if count > num_rows {
-            break;
-        }
 
         if is_ref == 0x1 {
             rdr.seek(SeekFrom::Current(-1)).expect("ROLLBACK ONE BYTE");
@@ -528,6 +570,10 @@ fn read_n_batches<T: BufRead + Seek>(mut rdr: &mut T, num_rows: u32) -> Result<V
         }
 
         count += 1;
+
+        if count > num_rows {
+            break;
+        }
     }
     Ok(v)
 }

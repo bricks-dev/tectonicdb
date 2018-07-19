@@ -11,7 +11,11 @@ RUN sudo chown -R rust:rust /home/rust
 # This is necessary due to a bug in Rust: https://github.com/rust-lang-nursery/rustup.rs/issues/1239
 RUN rm -rf ~/.rustup
 RUN curl https://sh.rustup.rs -sSf | \
+<<<<<<< HEAD
     sh -s -- -y --default-toolchain nightly-2018-05-25 && \
+=======
+    sh -s -- -y --default-toolchain nightly-2018-07-09 && \
+>>>>>>> ecca4d27f754d4f843520748532933619c68db6e
     rustup target add x86_64-unknown-linux-musl
 
 WORKDIR ~
@@ -19,7 +23,7 @@ WORKDIR ~
 # Build the `tectonic-server` application.
 RUN PKG_CONFIG_PATH=/usr/local/musl/lib/pkgconfig \
     LDFLAGS=-L/usr/local/musl/lib \
-    cargo build --bin tectonic-server --target x86_64-unknown-linux-musl --release
+    cargo build --bin tectonic-server --features autoflusher --target x86_64-unknown-linux-musl --release
 
 # Build the `dtfcat` application.
 RUN PKG_CONFIG_PATH=/usr/local/musl/lib/pkgconfig \
@@ -38,7 +42,10 @@ RUN PKG_CONFIG_PATH=/usr/local/musl/lib/pkgconfig \
 
 # Now, we need to build the _real_ Docker container, copying in `tectonic-server`
 FROM alpine:latest
-RUN apk --no-cache add ca-certificates && update-ca-certificates
+
+RUN apk --no-cache add bash ca-certificates
+RUN update-ca-certificates
+
 COPY --from=builder \
     /home/rust/src/target/x86_64-unknown-linux-musl/release/tectonic-server \
     /usr/local/bin/
@@ -56,4 +63,4 @@ COPY --from=builder \
     /usr/local/bin/
 
 # Initialize the application
-CMD /usr/local/bin/tectonic-server -vv
+CMD [ "/usr/local/bin/tectonic-server" ]
