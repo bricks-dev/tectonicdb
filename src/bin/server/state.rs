@@ -555,7 +555,6 @@ impl<'thr, 'store> ThreadState<'thr, 'store> {
             let (min_ts, max_ts) = range?;
             info!("min_ts, max_ts: {}, {}", min_ts, max_ts);
             info!("mem_min_tx, mem_max_tx: {}, {}", vecs.first()?.ts, vecs.last()?.ts);
-            info!("loc: {:?}", loc);
             if !within_range(min_ts, max_ts, vecs.first()?.ts, vecs.last()?.ts) {
                 info!("out of range");
                 return None;
@@ -570,7 +569,9 @@ impl<'thr, 'store> ThreadState<'thr, 'store> {
         // info!("vecs: {:?}", vecs.to_owned());
         // info!("acc: {:?}", acc);
         // if only requested items in memory
+        info!("loc: {:?}", loc);
         if let Loc::Mem = loc {
+            info!("request only from memory");
             return self._return_aux(&acc, format);
         }
 
