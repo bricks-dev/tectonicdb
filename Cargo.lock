@@ -162,7 +162,7 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-epoch"
-version = "0.4.3"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "arrayvec 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",

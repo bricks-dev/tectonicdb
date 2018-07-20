@@ -24,7 +24,3 @@ pub fn run_plugins(global: Arc<RwLock<SharedState>>, threadstate: ThreadState<'s
 pub fn run_plugin_exit_hooks(state: &ThreadState<'static, 'static>) {
     #[cfg(feature = "gcs")] gstorage::run_exit_hook(state);
 }
-
-pub fn run_plugin_exit_hooks(state: &ThreadState<'static, 'static>) {
-    #[cfg(feature = "gcs")] gstorage::run_exit_hook(state);
-}
