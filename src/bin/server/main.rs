@@ -14,6 +14,7 @@ extern crate lazy_static;
 
 #[macro_use]
 extern crate log;
+extern crate fern;
 extern crate stackdriver_logging_utils;
 
 extern crate uuid;
@@ -40,6 +41,7 @@ use stackdriver_logging_utils::init_default_logger;
 use settings::{key_or_default, key_or_none};
 
 fn main() {
+    print!("test");
     // Help detect OpenSSL certificates on Alpine Linux
     openssl_probe::init_ssl_cert_env_vars();
     let matches = get_matches();
@@ -56,6 +58,7 @@ fn main() {
         .value_of("dtf_folder")
         .map(String::from)
         .unwrap_or(key_or_default("TECTONICDB_DTF_FOLDER", "db"));
+    let verbosity = matches.occurrences_of("v") as u8;
     let autoflush = {
         let cli_setting: bool = matches.is_present("autoflush");
         let env_setting = key_or_none("TECTONICDB_AUTOFLUSH");
@@ -80,6 +83,10 @@ fn main() {
         .value_of("hist_q_capacity")
         .map(String::from)
         .unwrap_or(key_or_default("TECTONICDB_HIST_Q_CAPACITY", "300"));
+    let log_file = matches
+        .value_of("log_file")
+        .map(String::from)
+        .unwrap_or(key_or_default("TECTONICDB_LOG_FILE_NAME", "tectonic.log"));
 
     let settings = settings::Settings {
         autoflush: autoflush,
@@ -89,7 +96,8 @@ fn main() {
         hist_q_capacity: hist_q_capacity.parse().unwrap(),
     };
 
-    init_default_logger();
+    prepare_logger(verbosity, &log_file);
+    //init_default_logger();
 
     info!(r##"
            _/                            _/                          _/
@@ -100,6 +108,35 @@ fn main() {
     "##);
 
     server::run_server(&host, &port, &settings);
+}
+
+fn prepare_logger(verbosity: u8, log_file: &str) {
+    let level = match verbosity {
+        0 => log::LevelFilter::Error,
+        1 => log::LevelFilter::Warn,
+        2 => log::LevelFilter::Info,
+        3 => log::LevelFilter::Debug,
+        _ => log::LevelFilter::max(),
+    };
+
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{}[{}][{}] {}",
+                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S:%f]"),
+                record.target(),
+                record.level(),
+                message
+            ))
+        })
+        .level(level)
+        .level_for("tokio_core", log::LevelFilter::Info)
+        .level_for("tokio_reactor", log::LevelFilter::Info)
+        .level_for("hyper", log::LevelFilter::Info)
+        .chain(std::io::stdout())
+        .chain(fern::log_file(log_file).unwrap())
+        .apply()
+        .unwrap();
 }
 
 /// Gets configuration values from CLI arguments, falling back to environment variables
@@ -133,6 +170,9 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .help("Sets the folder to serve dtf files")
                 .takes_value(true),
         )
+        .arg(Arg::with_name("v").short("v").multiple(true).help(
+            "Sets the level of verbosity",
+        ))
         .arg(Arg::with_name("autoflush").short("a").help(
             "Sets autoflush (default is false)",
         ))
@@ -151,6 +191,13 @@ fn get_matches<'a>() -> ArgMatches<'a> {
                 .help(
                     "Sets the history record granularity interval. (default 60s)",
                 ),
+        )
+        .arg(
+            Arg::with_name("log_file")
+                .short("l")
+                .long("log_file")
+                .value_name("LOG_FILE")
+                .help("Sets the log file to write to"),
         )
         .get_matches()
 }
